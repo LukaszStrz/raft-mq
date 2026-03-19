@@ -1,5 +1,7 @@
 <Solution>
   <Project Path="RaftMq.Core/RaftMq.Core.csproj" />
   <Project Path="RaftMq.Infrastructure.File/RaftMq.Infrastructure.File.csproj" />
+  <Project Path="RaftMq.Tests.Integration/RaftMq.Tests.Integration.csproj" />
   <Project Path="RaftMq.Tests.Unit/RaftMq.Tests.Unit.csproj" />
+  <Project Path="RaftMq.Transport.RabbitMq/RaftMq.Transport.RabbitMq.csproj" />
 </Solution>
