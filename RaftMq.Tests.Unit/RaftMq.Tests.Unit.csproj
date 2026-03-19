@@ -21,6 +21,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\RaftMq.Core\RaftMq.Core.csproj" />
+    <ProjectReference Include="..\RaftMq.Infrastructure.File\RaftMq.Infrastructure.File.csproj" />
   </ItemGroup>
 
 </Project>
