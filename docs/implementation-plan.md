@@ -24,3 +24,8 @@
 ## Phase 5: Console Demonstrator
 - [x] **Scaffolding & Domain**: Create `RaftMq.Demo.Console` with `KeyValueCommand` and `KeyValueStateMachine`.
 - [x] **Interactive Terminal**: Implement a dynamic host loop to observe cluster elections and issue distributed payloads.
+
+## Phase 6: Autodiscovery & Dynamic Membership
+- [x] **Transport Discovery**: Implement a `Fanout` exchange in `RabbitMqTransportProvider` for broadcasting and receiving `NodeAnnounced` events.
+- [x] **Joint Consensus**: Define `AddNodeCommand` and implement dynamic cluster configuration changes so `RaftNode` can update its `majority` quorum safely.
+- [x] **Demonstrator Update**: Update the Console App to allow launching `dotnet run <any_random_id>` and watch it dynamically join the living cluster.

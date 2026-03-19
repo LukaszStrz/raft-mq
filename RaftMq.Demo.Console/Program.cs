@@ -25,16 +25,19 @@ public class Program
             System.Console.WriteLine("======================================");
             System.Console.WriteLine("    Raft-MQ Demonstrator Console");
             System.Console.WriteLine("======================================");
-            System.Console.WriteLine("Usage: dotnet run <NodeId>");
-            System.Console.WriteLine("Example: dotnet run nodeA");
+            System.Console.WriteLine("Usage: dotnet run <NodeId> [ClusterNodes]");
+            System.Console.WriteLine("Example: dotnet run nodeA nodeA,nodeB,nodeC,nodeD,nodeE");
             System.Console.WriteLine("");
-            System.Console.WriteLine("Cluster setup requires nodes: nodeA, nodeB, nodeC");
+            System.Console.WriteLine("If ClusterNodes is omitted, it defaults to: nodeA,nodeB,nodeC,nodeD,nodeE");
             return;
         }
 
         string nodeId = args[0];
+        string[] clusterNodes = args.Length > 1 
+            ? args[1].Split(',', StringSplitOptions.RemoveEmptyEntries) 
+            : new[] { "nodeA", "nodeB", "nodeC" };
         
-        var host = DefaultBuilder(args, nodeId).Build();
+        var host = DefaultBuilder(args, nodeId, clusterNodes).Build();
         
         System.Console.WriteLine($"======================================");
         System.Console.WriteLine($"Starting Raft Node: {nodeId}");
@@ -45,7 +48,7 @@ public class Program
         
         var runTask = host.RunAsync();
         
-        var raftNode = host.Services.GetRequiredService<RaftNode<KeyValueCommand>>();
+        var raftNode = host.Services.GetRequiredService<RaftNode<IRaftCommand>>();
         var stateMachine = host.Services.GetRequiredService<KeyValueStateMachine>();
         
         while (true)
@@ -84,7 +87,7 @@ public class Program
         }
     }
 
-    private static IHostBuilder DefaultBuilder(string[] args, string nodeId) =>
+    private static IHostBuilder DefaultBuilder(string[] args, string nodeId, string[] clusterNodes) =>
         Host.CreateDefaultBuilder(args)
             .ConfigureLogging(logging =>
             {
@@ -94,8 +97,6 @@ public class Program
             })
             .ConfigureServices(services =>
             {
-                var clusterNodes = new[] { "nodeA", "nodeB", "nodeC" };
-                
                 var storageDir = Path.Combine(Path.GetTempPath(), "RaftMq", nodeId);
                 Directory.CreateDirectory(storageDir);
 
@@ -106,8 +107,8 @@ public class Program
                 services.AddSingleton<KeyValueStateMachine>();
                 services.AddSingleton<IStateMachine>(sp => sp.GetRequiredService<KeyValueStateMachine>());
                 
-                services.AddSingleton<IPersistenceProvider<KeyValueCommand>>(sp => 
-                    new FilePersistenceProvider<KeyValueCommand>(
+                services.AddSingleton<IPersistenceProvider<IRaftCommand>>(sp => 
+                    new FilePersistenceProvider<IRaftCommand>(
                         Path.Combine(storageDir, "state.json"),
                         Path.Combine(storageDir, "log.json"),
                         jsonOptions));
@@ -118,21 +119,21 @@ public class Program
                     DispatchConsumersAsync = true 
                 });
 
-                services.AddSingleton<ITransport<KeyValueCommand>>(sp =>
-                    new RabbitMqTransportProvider<KeyValueCommand>(
+                services.AddSingleton<ITransport<IRaftCommand>>(sp =>
+                    new RabbitMqTransportProvider<IRaftCommand>(
                         nodeId,
                         sp.GetRequiredService<IConnectionFactory>(),
-                        sp.GetRequiredService<ILogger<RabbitMqTransportProvider<KeyValueCommand>>>(),
+                        sp.GetRequiredService<ILogger<RabbitMqTransportProvider<IRaftCommand>>>(),
                         jsonOptions));
 
                 services.AddSingleton(sp => 
-                    new RaftNode<KeyValueCommand>(
+                    new RaftNode<IRaftCommand>(
                         nodeId,
                         clusterNodes,
-                        sp.GetRequiredService<IPersistenceProvider<KeyValueCommand>>(),
+                        sp.GetRequiredService<IPersistenceProvider<IRaftCommand>>(),
                         sp.GetRequiredService<IStateMachine>(),
-                        sp.GetRequiredService<ITransport<KeyValueCommand>>(),
-                        sp.GetRequiredService<ILogger<RaftNode<KeyValueCommand>>>()));
+                        sp.GetRequiredService<ITransport<IRaftCommand>>(),
+                        sp.GetRequiredService<ILogger<RaftNode<IRaftCommand>>>()));
 
                 services.AddHostedService<RaftNodeHostedService>();
             });
@@ -140,10 +141,10 @@ public class Program
 
 public class RaftNodeHostedService : IHostedService
 {
-    private readonly RaftNode<KeyValueCommand> _node;
+    private readonly RaftNode<IRaftCommand> _node;
     private readonly CancellationTokenSource _cts = new();
 
-    public RaftNodeHostedService(RaftNode<KeyValueCommand> node)
+    public RaftNodeHostedService(RaftNode<IRaftCommand> node)
     {
         _node = node;
     }

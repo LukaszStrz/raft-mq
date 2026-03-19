@@ -10,6 +10,8 @@ public interface ITransport<T> where T : IRaftCommand
     Task<AppendEntriesResponse> SendAppendEntriesAsync(string targetNodeId, AppendEntriesRequest<T> request, CancellationToken cancellationToken = default);
     Task<RequestVoteResponse> SendRequestVoteAsync(string targetNodeId, RequestVoteRequest request, CancellationToken cancellationToken = default);
     
+    event EventHandler<string>? OnNodeDiscovered;
+
     void RegisterAppendEntriesHandler(Func<AppendEntriesRequest<T>, Task<AppendEntriesResponse>> handler);
     void RegisterRequestVoteHandler(Func<RequestVoteRequest, Task<RequestVoteResponse>> handler);
 

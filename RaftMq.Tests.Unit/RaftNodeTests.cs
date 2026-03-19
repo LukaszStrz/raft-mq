@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using AutoFixture;
@@ -18,36 +20,32 @@ public class DummyCommand : IRaftCommand { }
 public class RaftNodeTests
 {
     private readonly IFixture _fixture;
-    private readonly IPersistenceProvider<DummyCommand> _persistenceProvider;
+    private readonly IPersistenceProvider<IRaftCommand> _persistenceProvider;
     private readonly IStateMachine _stateMachine;
-    private readonly ITransport<DummyCommand> _transport;
-    private readonly ILogger<RaftNode<DummyCommand>> _logger;
+    private readonly ITransport<IRaftCommand> _transport;
+    private readonly ILogger<RaftNode<IRaftCommand>> _logger;
 
     public RaftNodeTests()
     {
         _fixture = new Fixture();
-        _persistenceProvider = Substitute.For<IPersistenceProvider<DummyCommand>>();
+        _persistenceProvider = Substitute.For<IPersistenceProvider<IRaftCommand>>();
         _stateMachine = Substitute.For<IStateMachine>();
-        _transport = Substitute.For<ITransport<DummyCommand>>();
-        _logger = Substitute.For<ILogger<RaftNode<DummyCommand>>>();
+        _transport = Substitute.For<ITransport<IRaftCommand>>();
+        _logger = Substitute.For<ILogger<RaftNode<IRaftCommand>>>();
         
         _persistenceProvider.LoadStateAsync(Arg.Any<CancellationToken>())
             .Returns(Task.FromResult<(long, string?)>((0, null)));
             
         _persistenceProvider.LoadLogAsync(Arg.Any<CancellationToken>())
-            .Returns(Task.FromResult<IReadOnlyList<LogEntry<DummyCommand>>>(new List<LogEntry<DummyCommand>>()));
+            .Returns(Task.FromResult<IReadOnlyList<LogEntry<IRaftCommand>>>(new List<LogEntry<IRaftCommand>>()));
     }
 
     [Fact]
     public async Task InitializeAsync_ShouldLoadState_AndSetFollower()
     {
-        // Arrange
-        var node = new RaftNode<DummyCommand>("node1", new[] { "node1", "node2" }, _persistenceProvider, _stateMachine, _transport, _logger);
-
-        // Act
+        var node = new RaftNode<IRaftCommand>("node1", new[] { "node1", "node2" }, _persistenceProvider, _stateMachine, _transport, _logger);
         await node.InitializeAsync();
 
-        // Assert
         node.State.Should().Be(RaftNodeState.Follower);
         await _persistenceProvider.Received(1).LoadStateAsync(Arg.Any<CancellationToken>());
         await _transport.Received(1).StartAsync(Arg.Any<CancellationToken>());
@@ -56,23 +54,39 @@ public class RaftNodeTests
     [Fact]
     public async Task HandleAppendEntries_WhenTermIsGreater_ShouldBecomeFollower()
     {
-        // Arrange
-        var node = new RaftNode<DummyCommand>("node1", new[] { "node1", "node2" }, _persistenceProvider, _stateMachine, _transport, _logger);
+        var node = new RaftNode<IRaftCommand>("node1", new[] { "node1", "node2" }, _persistenceProvider, _stateMachine, _transport, _logger);
         await node.InitializeAsync();
         
-        var request = new AppendEntriesRequest<DummyCommand>
+        var request = new AppendEntriesRequest<IRaftCommand>
         {
             Term = 5,
             LeaderId = "node2",
-            Entries = Array.Empty<LogEntry<DummyCommand>>()
+            Entries = Array.Empty<LogEntry<IRaftCommand>>()
         };
 
-        // Act
         var response = await node.HandleAppendEntriesAsync(request);
 
-        // Assert
         response.Success.Should().BeTrue();
         response.Term.Should().Be(5);
         node.State.Should().Be(RaftNodeState.Follower);
+    }
+
+    [Fact]
+    public async Task Leader_OnNodeDiscovered_Should_Propose_AddNodeCommand()
+    {
+        var node = new RaftNode<IRaftCommand>("node1", new[] { "node1", "node2" }, _persistenceProvider, _stateMachine, _transport, _logger);
+        await node.InitializeAsync();
+
+        var stateField = typeof(RaftNode<IRaftCommand>).GetField("_state", BindingFlags.NonPublic | BindingFlags.Instance);
+        stateField!.SetValue(node, RaftNodeState.Leader);
+
+        _transport.OnNodeDiscovered += Raise.Event<EventHandler<string>>(_transport, "newNode3");
+
+        await Task.Delay(250); // Ensure the background async handler processes the lock and executes logic
+
+        await _persistenceProvider.Received(1).AppendLogEntriesAsync(
+            Arg.Is<IEnumerable<LogEntry<IRaftCommand>>>(entries => 
+                entries.Any(e => e.Command is AddNodeCommand && ((AddNodeCommand)e.Command).NodeId == "newNode3")), 
+            Arg.Any<CancellationToken>());
     }
 }
