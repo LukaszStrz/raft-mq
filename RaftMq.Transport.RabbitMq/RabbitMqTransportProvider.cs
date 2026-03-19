@@ -49,12 +49,31 @@ public class RabbitMqTransportProvider<T> : ITransport<T>, IDisposable where T :
         _jsonOptions = jsonOptions ?? new JsonSerializerOptions();
     }
 
-    public Task StartAsync(CancellationToken cancellationToken = default)
+    public async Task StartAsync(CancellationToken cancellationToken = default)
     {
-        _connection = _connectionFactory.CreateConnection();
-        _channel = _connection.CreateModel();
+        int retries = 5;
+        while (retries-- > 0)
+        {
+            try
+            {
+                _connection = _connectionFactory.CreateConnection();
+                _channel = _connection.CreateModel();
+                break;
+            }
+            catch (RabbitMQ.Client.Exceptions.BrokerUnreachableException ex)
+            {
+                if (retries == 0)
+                {
+                    _logger.LogCritical(ex, "Node {NodeId} could not connect to RabbitMQ.", _nodeId);
+                    throw;
+                }
+                
+                _logger.LogWarning("Node {NodeId} failed to connect. Retrying in 2 seconds...", _nodeId);
+                await Task.Delay(2000, cancellationToken).ConfigureAwait(false);
+            }
+        }
 
-        _channel.ExchangeDeclare(ExchangeName, ExchangeType.Direct);
+        _channel!.ExchangeDeclare(ExchangeName, ExchangeType.Direct);
 
         // 1. Setup incoming RPC queue
         _channel.QueueDeclare(_queueName, durable: false, exclusive: false, autoDelete: true);
@@ -71,7 +90,6 @@ public class RabbitMqTransportProvider<T> : ITransport<T>, IDisposable where T :
         _channel.BasicConsume(_replyQueueName, autoAck: true, replyConsumer);
 
         _logger.LogInformation("Node {NodeId} RabbitMQ transport started.", _nodeId);
-        return Task.CompletedTask;
     }
 
     public Task StopAsync(CancellationToken cancellationToken = default)
