@@ -35,7 +35,7 @@ public class RaftNode<T> : IDisposable where T : IRaftCommand
     private Timer? _heartbeatTimer;
     private readonly Random _random = new();
 
-    private const int HeartbeatIntervalMs = 50;
+    private const int HeartbeatIntervalMs = 150;
 
     public RaftNodeState State => _state;
     public string NodeId => _nodeId;
@@ -88,7 +88,7 @@ public class RaftNode<T> : IDisposable where T : IRaftCommand
     {
         if (_state == RaftNodeState.Leader) return;
 
-        int timeout = _random.Next(150, 301); // 150-300ms
+        int timeout = _random.Next(500, 1001); // 500-1000ms
         _electionTimer ??= new Timer(OnElectionTimeout, null, Timeout.Infinite, Timeout.Infinite);
         _electionTimer.Change(timeout, Timeout.Infinite);
     }
@@ -123,18 +123,23 @@ public class RaftNode<T> : IDisposable where T : IRaftCommand
         
         long lastLogIndex = _log.Count > 0 ? _log[^1].Index : 0;
         long lastLogTerm = _log.Count > 0 ? _log[^1].Term : 0;
+        long savedTerm = _currentTerm;
 
         var request = new RequestVoteRequest
         {
-            Term = _currentTerm,
+            Term = savedTerm,
             CandidateId = _nodeId,
             LastLogIndex = lastLogIndex,
             LastLogTerm = lastLogTerm
         };
 
-        _logger.LogInformation("Node {NodeId} started election for term {Term}", _nodeId, _currentTerm);
+        _logger.LogInformation("Node {NodeId} started election for term {Term}", _nodeId, savedTerm);
         
-        long savedTerm = _currentTerm;
+        _ = EvaluateElectionAsync(savedTerm, request);
+    }
+
+    private async Task EvaluateElectionAsync(long savedTerm, RequestVoteRequest request)
+    {
         int votes = 1; // Vote for self
         int majority = (_clusterNodes.Count / 2) + 1;
 
@@ -142,7 +147,7 @@ public class RaftNode<T> : IDisposable where T : IRaftCommand
         {
             try
             {
-                using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(100)); // tight timeout
+                using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(500));
                 var response = await _transport.SendRequestVoteAsync(targetNode, request, cts.Token).ConfigureAwait(false);
                 return response;
             }
@@ -284,7 +289,7 @@ public class RaftNode<T> : IDisposable where T : IRaftCommand
     {
         try
         {
-            using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
+            using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(500));
             var response = await _transport.SendAppendEntriesAsync(targetNode, request, cts.Token).ConfigureAwait(false);
             
             await _stateLock.WaitAsync().ConfigureAwait(false);
