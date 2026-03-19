@@ -23,11 +23,11 @@ public class RabbitMqTransportProvider<T> : ITransport<T>, IDisposable where T :
     private IModel? _channel;
     
     // For listening to incoming RPCs
-    private string _queueName => $"raft.node.{_nodeId}";
+    private readonly string _queueName;
     private const string ExchangeName = "raft.exchange";
 
     // For sending RPCs and waiting for replies
-    private string _replyQueueName => $"raft.reply.{_nodeId}.{Guid.NewGuid():N}";
+    private readonly string _replyQueueName;
     private readonly ConcurrentDictionary<string, TaskCompletionSource<string>> _pendingRequests = new();
 
     private Func<AppendEntriesRequest<T>, Task<AppendEntriesResponse>>? _appendEntriesHandler;
@@ -40,6 +40,9 @@ public class RabbitMqTransportProvider<T> : ITransport<T>, IDisposable where T :
         JsonSerializerOptions? jsonOptions = null)
     {
         _nodeId = nodeId;
+        _queueName = $"raft.node.{_nodeId}";
+        _replyQueueName = $"raft.reply.{_nodeId}.{Guid.NewGuid():N}";
+
         // Ensure async consumers are enabled is the caller's responsibility, but we assume it here
         _connectionFactory = connectionFactory;
         _logger = logger;
