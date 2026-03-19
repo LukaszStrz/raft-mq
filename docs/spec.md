@@ -4,12 +4,12 @@
 `raft-mq` is a C# implementation of the Raft Consensus Algorithm (.NET Standard 2.1) designed to operate over Message Queue transports. It decouples the Raft safety logic from the network layer, allowing for resilient, distributed state machines that communicate via brokers like RabbitMQ.
 
 ## 2. Functional Requirements
-- [ ] **Core Raft Logic**: Implementation of Leader Election, Log Replication, and Safety (as per the Raft Paper).
-- [ ] **Command Pattern Integration**: All state changes must be encapsulated in `IRaftCommand` objects.
-- [ ] **State Machine Hook**: An `IStateMachine` interface that executes committed commands.
-- [ ] **Pluggable Persistence**: An `IPersistenceProvider` interface for stable storage of the Log and Metadata (Term, Vote).
-- [ ] **MQ Transport**: An `ITransport` interface implemented initially for RabbitMQ.
-- [ ] **Async Native**: Strict adherence to Task-based Asynchronous Pattern (TAP).
+- [x] **Core Raft Logic**: Implementation of Leader Election, Log Replication, and Safety (as per the Raft Paper).
+- [x] **Command Pattern Integration**: All state changes must be encapsulated in `IRaftCommand` objects.
+- [x] **State Machine Hook**: An `IStateMachine` interface that executes committed commands.
+- [x] **Pluggable Persistence**: An `IPersistenceProvider` interface for stable storage of the Log and Metadata (Term, Vote).
+- [x] **MQ Transport**: An `ITransport` interface implemented initially for RabbitMQ.
+- [x] **Async Native**: Strict adherence to Task-based Asynchronous Pattern (TAP).
 - [ ] **Membership**: Support for Joint Consensus for cluster configuration changes.
 
 ## 3. Technical Specification
@@ -27,6 +27,6 @@ The project uses a **Hexagonal (Ports & Adapters)** architecture:
 
 ## 5. Success Criteria (Definition of Done)
 - [ ] 100% of Raft safety properties (Election Safety, Leader Append-Only, Log Matching) verified via unit tests.
-- [ ] Integration test: 3-node cluster performs leader election and command replication over a live RabbitMQ broker.
-- [ ] Zero blocking calls (no `.Result` or `.Wait()`).
+- [x] Integration test: 3-node cluster performs leader election and command replication over a live RabbitMQ broker.
+- [x] Zero blocking calls (no `.Result` or `.Wait()`).
 - [ ] Public API surface is fully documented via XML comments.

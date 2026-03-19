@@ -25,6 +25,8 @@ public class RabbitMqTransportProvider<T> : ITransport<T>, IDisposable where T :
     // For listening to incoming RPCs
     private readonly string _queueName;
     private const string ExchangeName = "raft.exchange";
+    private const int MaxConnectionRetries = 5;
+    private const int ConnectionRetryDelayMs = 2000;
 
     // For sending RPCs and waiting for replies
     private readonly string _replyQueueName;
@@ -49,12 +51,31 @@ public class RabbitMqTransportProvider<T> : ITransport<T>, IDisposable where T :
         _jsonOptions = jsonOptions ?? new JsonSerializerOptions();
     }
 
-    public Task StartAsync(CancellationToken cancellationToken = default)
+    public async Task StartAsync(CancellationToken cancellationToken = default)
     {
-        _connection = _connectionFactory.CreateConnection();
-        _channel = _connection.CreateModel();
+        int retries = MaxConnectionRetries;
+        while (retries-- > 0)
+        {
+            try
+            {
+                _connection = _connectionFactory.CreateConnection();
+                _channel = _connection.CreateModel();
+                break;
+            }
+            catch (RabbitMQ.Client.Exceptions.BrokerUnreachableException ex)
+            {
+                if (retries == 0)
+                {
+                    _logger.LogCritical(ex, "Node {NodeId} could not connect to RabbitMQ.", _nodeId);
+                    throw;
+                }
+                
+                _logger.LogWarning("Node {NodeId} failed to connect. Retrying in {DelayMs}ms...", _nodeId, ConnectionRetryDelayMs);
+                await Task.Delay(ConnectionRetryDelayMs, cancellationToken).ConfigureAwait(false);
+            }
+        }
 
-        _channel.ExchangeDeclare(ExchangeName, ExchangeType.Direct);
+        _channel!.ExchangeDeclare(ExchangeName, ExchangeType.Direct);
 
         // 1. Setup incoming RPC queue
         _channel.QueueDeclare(_queueName, durable: false, exclusive: false, autoDelete: true);
@@ -71,7 +92,6 @@ public class RabbitMqTransportProvider<T> : ITransport<T>, IDisposable where T :
         _channel.BasicConsume(_replyQueueName, autoAck: true, replyConsumer);
 
         _logger.LogInformation("Node {NodeId} RabbitMQ transport started.", _nodeId);
-        return Task.CompletedTask;
     }
 
     public Task StopAsync(CancellationToken cancellationToken = default)
