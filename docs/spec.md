@@ -17,7 +17,7 @@
 - **Language**: C# 10.0+
 - **Transport**: `RabbitMQ.Client`
 - **Serialization**: `System.Text.Json` (Polymorphic for Commands)
-- **Testing**: `xUnit`, `Moq`, `Testcontainers` (for RabbitMQ integration).
+- **Testing**: `xUnit`, `NSubstitute`, `FluentAssertions`, `AutoFixture`, `Testcontainers` (for RabbitMQ integration).
 
 ## 4. Architecture & State
 The project uses a **Hexagonal (Ports & Adapters)** architecture:

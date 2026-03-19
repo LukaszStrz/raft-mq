@@ -24,7 +24,7 @@
 ## 4. Testing & Reliability
 - **Unit Tests:** Every core logic class must have a corresponding test class in `RaftMq.Tests.Unit`.
 - **Mocks:** Use NSubstitute for interface mocking in unit tests.
-- **Assertions:** Use FluentAssertions for assertions in unit tests.
+- **Assertions:** Use FluentAssertions for assertions in all tests.
 - **Test data:** Use AutoFixture for test data creation in unit tests.
 - **Logging:** Inject `ILogger<T>` into all services. Use structured logging; do not use string interpolation in log messages (e.g., `_logger.LogInformation("Node {NodeId} became Leader", id);`).
 

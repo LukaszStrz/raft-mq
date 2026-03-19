@@ -1,0 +1,12 @@
+version: 1.0
+rules:
+  - path: ".gemini/styleguide.md"
+    description: "C# and Hexagonal Architecture coding standards"
+
+ignore:
+  - "**/bin/"
+  - "**/obj/"
+  - "**/.vs/"
+  - "**/.idea/"
+  - "**/*.user"
+  - "**/TestResults/"
