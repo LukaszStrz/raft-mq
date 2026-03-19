@@ -39,6 +39,7 @@ public class RaftNode<T> : IDisposable where T : IRaftCommand
 
     public RaftNodeState State => _state;
     public string NodeId => _nodeId;
+    public long CurrentTerm => _currentTerm;
 
     public RaftNode(
         string nodeId,

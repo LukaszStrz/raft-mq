@@ -11,6 +11,7 @@
 - [x] **MQ Transport**: An `ITransport` interface implemented initially for RabbitMQ.
 - [x] **Async Native**: Strict adherence to Task-based Asynchronous Pattern (TAP).
 - [ ] **Membership**: Support for Joint Consensus for cluster configuration changes.
+- [x] **Demonstrator**: Interactive console REPL application to demonstrate clustering visually via standard output.
 
 ## 3. Technical Specification
 - **Framework**: .NET Standard 2.1
