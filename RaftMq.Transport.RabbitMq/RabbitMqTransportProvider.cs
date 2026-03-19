@@ -25,6 +25,8 @@ public class RabbitMqTransportProvider<T> : ITransport<T>, IDisposable where T :
     // For listening to incoming RPCs
     private readonly string _queueName;
     private const string ExchangeName = "raft.exchange";
+    private const int MaxConnectionRetries = 5;
+    private const int ConnectionRetryDelayMs = 2000;
 
     // For sending RPCs and waiting for replies
     private readonly string _replyQueueName;
@@ -51,7 +53,7 @@ public class RabbitMqTransportProvider<T> : ITransport<T>, IDisposable where T :
 
     public async Task StartAsync(CancellationToken cancellationToken = default)
     {
-        int retries = 5;
+        int retries = MaxConnectionRetries;
         while (retries-- > 0)
         {
             try
@@ -68,8 +70,8 @@ public class RabbitMqTransportProvider<T> : ITransport<T>, IDisposable where T :
                     throw;
                 }
                 
-                _logger.LogWarning("Node {NodeId} failed to connect. Retrying in 2 seconds...", _nodeId);
-                await Task.Delay(2000, cancellationToken).ConfigureAwait(false);
+                _logger.LogWarning("Node {NodeId} failed to connect. Retrying in {DelayMs}ms...", _nodeId, ConnectionRetryDelayMs);
+                await Task.Delay(ConnectionRetryDelayMs, cancellationToken).ConfigureAwait(false);
             }
         }
 
