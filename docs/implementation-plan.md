@@ -20,3 +20,7 @@
 ## Phase 4: Hardening
 - [x] **Error Handling**: Implement MQ-specific retry logic and connection recovery.
 - [x] **Logging**: Integrate `Microsoft.Extensions.Logging` throughout the core logic for traceability.
+
+## Phase 5: Console Demonstrator
+- [x] **Scaffolding & Domain**: Create `RaftMq.Demo.Console` with `KeyValueCommand` and `KeyValueStateMachine`.
+- [x] **Interactive Terminal**: Implement a dynamic host loop to observe cluster elections and issue distributed payloads.
