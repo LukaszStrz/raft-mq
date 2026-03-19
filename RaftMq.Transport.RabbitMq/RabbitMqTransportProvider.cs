@@ -32,6 +32,8 @@ public class RabbitMqTransportProvider<T> : ITransport<T>, IDisposable where T :
     private readonly string _replyQueueName;
     private readonly ConcurrentDictionary<string, TaskCompletionSource<string>> _pendingRequests = new();
 
+    public event EventHandler<string>? OnNodeDiscovered;
+
     private Func<AppendEntriesRequest<T>, Task<AppendEntriesResponse>>? _appendEntriesHandler;
     private Func<RequestVoteRequest, Task<RequestVoteResponse>>? _requestVoteHandler;
 
@@ -76,6 +78,25 @@ public class RabbitMqTransportProvider<T> : ITransport<T>, IDisposable where T :
         }
 
         _channel!.ExchangeDeclare(ExchangeName, ExchangeType.Direct);
+
+        _channel.ExchangeDeclare("raft.discovery", ExchangeType.Fanout);
+        var dq = _channel.QueueDeclare().QueueName;
+        _channel.QueueBind(dq, "raft.discovery", routingKey: "");
+        
+        var dc = new AsyncEventingBasicConsumer(_channel);
+        dc.Received += (sender, ea) =>
+        {
+            var discoveredNodeId = Encoding.UTF8.GetString(ea.Body.ToArray());
+            if (discoveredNodeId != _nodeId)
+            {
+                OnNodeDiscovered?.Invoke(this, discoveredNodeId);
+            }
+            return Task.CompletedTask;
+        };
+        _channel.BasicConsume(dq, autoAck: true, dc);
+
+        var bodyDiscovery = Encoding.UTF8.GetBytes(_nodeId);
+        _channel.BasicPublish(exchange: "raft.discovery", routingKey: "", basicProperties: null, body: bodyDiscovery);
 
         // 1. Setup incoming RPC queue
         _channel.QueueDeclare(_queueName, durable: false, exclusive: false, autoDelete: true);

@@ -13,7 +13,7 @@ namespace RaftMq.Core;
 public class RaftNode<T> : IDisposable where T : IRaftCommand
 {
     private readonly string _nodeId;
-    private readonly IReadOnlyList<string> _clusterNodes;
+    private readonly HashSet<string> _clusterNodes;
     private readonly IPersistenceProvider<T> _persistenceProvider;
     private readonly IStateMachine _stateMachine;
     private readonly ITransport<T> _transport;
@@ -50,7 +50,8 @@ public class RaftNode<T> : IDisposable where T : IRaftCommand
         ILogger<RaftNode<T>> logger)
     {
         _nodeId = nodeId;
-        _clusterNodes = clusterNodes;
+        _clusterNodes = new HashSet<string>(clusterNodes);
+        if (!_clusterNodes.Contains(_nodeId)) _clusterNodes.Add(_nodeId);
         _persistenceProvider = persistenceProvider;
         _stateMachine = stateMachine;
         _transport = transport;
@@ -58,6 +59,30 @@ public class RaftNode<T> : IDisposable where T : IRaftCommand
 
         _transport.RegisterAppendEntriesHandler(HandleAppendEntriesAsync);
         _transport.RegisterRequestVoteHandler(HandleRequestVoteAsync);
+        
+        _transport.OnNodeDiscovered += async (s, discoveredNodeId) => 
+        {
+            try
+            {
+                await _stateLock.WaitAsync().ConfigureAwait(false);
+                if (_state == RaftNodeState.Leader && !_clusterNodes.Contains(discoveredNodeId))
+                {
+                    _logger.LogInformation("Leader discovered new node {DiscoveredNodeId}, proposing AddNodeCommand", discoveredNodeId);
+                    var entry = new LogEntry<T>
+                    {
+                        Term = _currentTerm,
+                        Index = (_log.Count > 0 ? _log[^1].Index : 0) + 1,
+                        Command = (T)(IRaftCommand)new AddNodeCommand { NodeId = discoveredNodeId }
+                    };
+                    _log.Add(entry);
+                    await _persistenceProvider.AppendLogEntriesAsync(new[] { entry }).ConfigureAwait(false);
+                }
+            }
+            finally
+            {
+                _stateLock.Release();
+            }
+        };
     }
 
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
@@ -263,26 +288,47 @@ public class RaftNode<T> : IDisposable where T : IRaftCommand
         }
     }
 
-    private void SendHeartbeats()
+    private async void SendHeartbeats()
     {
-        long lastLogIndex = _log.Count > 0 ? _log[^1].Index : 0;
-        long lastLogTerm = _log.Count > 0 ? _log[^1].Term : 0;
-
-        foreach (var targetNode in _clusterNodes)
+        await _stateLock.WaitAsync().ConfigureAwait(false);
+        try
         {
-            if (targetNode == _nodeId) continue;
-
-            var request = new AppendEntriesRequest<T>
+            foreach (var targetNode in _clusterNodes)
             {
-                Term = _currentTerm,
-                LeaderId = _nodeId,
-                PrevLogIndex = lastLogIndex,
-                PrevLogTerm = lastLogTerm,
-                Entries = Array.Empty<LogEntry<T>>(),
-                LeaderCommit = _commitIndex
-            };
+                if (targetNode == _nodeId) continue;
 
-            _ = SendAppendEntriesUnsafeAsync(targetNode, request);
+                if (!_nextIndex.TryGetValue(targetNode, out long nextIdx))
+                {
+                    nextIdx = _log.Count > 0 ? _log[^1].Index + 1 : 1;
+                    _nextIndex[targetNode] = nextIdx;
+                    _matchIndex[targetNode] = 0;
+                }
+
+                long prevLogIndex = nextIdx - 1;
+                long prevLogTerm = 0;
+                if (prevLogIndex > 0 && prevLogIndex <= _log.Count)
+                {
+                    prevLogTerm = _log[(int)prevLogIndex - 1].Term;
+                }
+
+                var entriesToSend = _log.Where(e => e.Index >= nextIdx).ToArray();
+
+                var request = new AppendEntriesRequest<T>
+                {
+                    Term = _currentTerm,
+                    LeaderId = _nodeId,
+                    PrevLogIndex = prevLogIndex,
+                    PrevLogTerm = prevLogTerm,
+                    Entries = entriesToSend,
+                    LeaderCommit = _commitIndex
+                };
+
+                _ = SendAppendEntriesUnsafeAsync(targetNode, request);
+            }
+        }
+        finally
+        {
+            _stateLock.Release();
         }
     }
 
@@ -309,7 +355,7 @@ public class RaftNode<T> : IDisposable where T : IRaftCommand
                     _matchIndex[targetNode] = request.PrevLogIndex + request.Entries.Length;
                     _nextIndex[targetNode] = _matchIndex[targetNode] + 1;
 
-                    AdvanceCommitIndex();
+                    await AdvanceCommitIndexAsync().ConfigureAwait(false);
                 }
                 else
                 {
@@ -328,7 +374,7 @@ public class RaftNode<T> : IDisposable where T : IRaftCommand
         }
     }
 
-    private void AdvanceCommitIndex()
+    private async Task AdvanceCommitIndexAsync()
     {
         for (long n = (_log.Count > 0 ? _log[^1].Index : 0); n > _commitIndex; n--)
         {
@@ -346,10 +392,34 @@ public class RaftNode<T> : IDisposable where T : IRaftCommand
                 if (entry.Term == _currentTerm)
                 {
                     _commitIndex = n;
-                    // Apply to state machine (MVP TODO)
+                    await ApplyCommittedEntriesAsync().ConfigureAwait(false);
                     break;
                 }
             }
+        }
+    }
+
+    private async Task ApplyCommittedEntriesAsync()
+    {
+        while (_lastApplied < _commitIndex)
+        {
+            var entry = _log[(int)_lastApplied];
+            _lastApplied++;
+            
+            if (entry.Command is AddNodeCommand addNodeCmd)
+            {
+                if (_clusterNodes.Add(addNodeCmd.NodeId))
+                {
+                    _logger.LogInformation("Node {NewNodeId} dynamically joined the cluster. New Quorum size: {Count}", addNodeCmd.NodeId, _clusterNodes.Count);
+                    if (_state == RaftNodeState.Leader && !_matchIndex.ContainsKey(addNodeCmd.NodeId))
+                    {
+                        _nextIndex[addNodeCmd.NodeId] = _log.Count > 0 ? _log[^1].Index + 1 : 1;
+                        _matchIndex[addNodeCmd.NodeId] = 0;
+                    }
+                }
+            }
+            
+            await _stateMachine.ApplyAsync(entry.Command).ConfigureAwait(false);
         }
     }
 
@@ -452,6 +522,7 @@ public class RaftNode<T> : IDisposable where T : IRaftCommand
             if (request.LeaderCommit > _commitIndex)
             {
                 _commitIndex = Math.Min(request.LeaderCommit, _log.Count > 0 ? _log[^1].Index : 0);
+                await ApplyCommittedEntriesAsync().ConfigureAwait(false);
             }
 
             return new AppendEntriesResponse { Term = _currentTerm, Success = true };

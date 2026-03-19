@@ -10,7 +10,7 @@
 - [x] **Pluggable Persistence**: An `IPersistenceProvider` interface for stable storage of the Log and Metadata (Term, Vote).
 - [x] **MQ Transport**: An `ITransport` interface implemented initially for RabbitMQ.
 - [x] **Async Native**: Strict adherence to Task-based Asynchronous Pattern (TAP).
-- [ ] **Membership**: Support for Joint Consensus for cluster configuration changes.
+- [ ] **Dynamic Membership**: Support for Raft Joint Consensus and RabbitMQ Fanout-based Autodiscovery.
 - [x] **Demonstrator**: Interactive console REPL application to demonstrate clustering visually via standard output.
 
 ## 3. Technical Specification
