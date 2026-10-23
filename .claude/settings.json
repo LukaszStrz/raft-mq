@@ -1,0 +1,13 @@
+{
+  "enabledPlugins": {
+    "agent-skills@addy-agent-skills": true
+  },
+  "extraKnownMarketplaces": {
+    "addy-agent-skills": {
+      "source": {
+        "source": "github",
+        "repo": "LukaszStrz/agent-skills"
+      }
+    }
+  }
+}
