@@ -23,18 +23,3 @@ one-time step per machine:
 To add a personal skill on top of the fork: add `skills/<name>/SKILL.md` to
 `LukaszStrz/agent-skills`, push, then re-run `claude plugin install agent-skills@addy-agent-skills`
 (or wait for its background auto-update) to pick it up — no changes needed in `raft-mq` itself.
-
-### Windows: SSH key on a hardware token (YubiKey)
-
-If your GitHub SSH key lives behind a hardware-backed agent (YubiKey via Pageant or the Windows
-OpenSSH Authentication Agent service), git-bash's *bundled* `ssh` (`/usr/bin/ssh`, Git for
-Windows' own OpenSSH port) can't reach it — it only checks default key files on disk and fails
-with `Permission denied (publickey)`, even though `ssh` works fine from PowerShell/cmd or other
-apps. The native Windows OpenSSH client at `C:\Windows\System32\OpenSSH\ssh.exe` *does* support
-the Windows agent, so point git at it explicitly instead of relying on `PATH` order (reordering
-`PATH` to prefer System32 is NOT a good fix — it breaks GNU tools like `find`/`sort` that
-git-bash's own `/usr/bin` versions shadow):
-
-```bash
-git config --global core.sshCommand '"C:/Windows/System32/OpenSSH/ssh.exe"'
-```
