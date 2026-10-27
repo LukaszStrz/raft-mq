@@ -1,0 +1,22 @@
+# Normalize all text files to LF in the repository
+* text=auto eol=lf
+
+# Windows batch scripts and classic Visual Studio solutions require CRLF
+*.sln text eol=crlf
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
+# Binary files
+*.dll    binary
+*.exe    binary
+*.pdb    binary
+*.nupkg  binary
+*.snupkg binary
+*.snk    binary
+*.pfx    binary
+*.zip    binary
+*.png    binary
+*.jpg    binary
+*.jpeg   binary
+*.gif    binary
+*.ico    binary

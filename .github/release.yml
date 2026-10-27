@@ -1,0 +1,30 @@
+changelog:
+  exclude:
+    labels:
+      - "release: ignore"
+      - "type: duplicate"
+      - "type: invalid"
+      - "type: wontfix"
+  categories:
+    - title: Breaking Changes
+      labels:
+        - "breaking-change"
+    - title: Features
+      labels:
+        - "type: enhancement"
+    - title: Bug Fixes
+      labels:
+        - "type: bug"
+    - title: Performance
+      labels:
+        - "type: performance"
+    - title: Documentation
+      labels:
+        - "type: docs"
+    - title: Dependencies & Maintenance
+      labels:
+        - "type: dependencies"
+        - "type: chore"
+    - title: Other Changes
+      labels:
+        - "*"
