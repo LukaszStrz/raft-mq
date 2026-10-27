@@ -427,3 +427,11 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+# Mutation testing output
+StrykerOutput/
+
+# Local-only AI agent configurations
+.claude/settings.local.json
+CLAUDE.local.md
+
